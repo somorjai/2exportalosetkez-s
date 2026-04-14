@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Étkezés Ellenőrző – Karolina Iskola</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+
+  :root {
+    --bg: #f5f0e8;
+    --surface: #fffdf8;
+    --border: #d4c9b0;
+    --text: #2a2118;
+    --text-muted: #7a6d5a;
+    --accent: #1a5c3a;
+    --accent-light: #e8f4ee;
+    --t-color: #1565c0; --t-bg: #e3f0ff;
+    --e-color: #5d4037; --e-bg: #fbe9e0;
+    --u-color: #6a1b9a; --u-bg: #f3e5f5;
+    --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Nunito', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--accent); color: white;
+    padding: 14px 16px 10px;
+    position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 3px 16px rgba(0,0,0,0.18);
+  }
+  .header-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .header h1 { font-size: 1.15rem; font-weight: 900; line-height: 1.2; }
+  .date-badge {
+    background: rgba(255,255,255,0.2); border-radius: 8px;
+    padding: 4px 10px; font-size: 0.85rem; font-weight: 700; white-space: nowrap;
+  }
+
+  /* ── MEAL TABS ── */
+  .meal-tabs {
+    display: flex; background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    position: sticky; top: 62px; z-index: 90;
+  }
+  .meal-tab {
+    flex: 1; padding: 12px 6px; text-align: center;
+    font-size: 0.9rem; font-weight: 800; color: var(--text-muted);
+    cursor: pointer; border: none; background: none;
+    border-bottom: 4px solid transparent; transition: all 0.15s;
+    font-family: 'Nunito', sans-serif;
+  }
+  .meal-tab.active-t { color: var(--t-color); border-bottom-color: var(--t-color); background: var(--t-bg); }
+  .meal-tab.active-e { color: var(--e-color); border-bottom-color: var(--e-color); background: var(--e-bg); }
+  .meal-tab.active-u { color: var(--u-color); border-bottom-color: var(--u-color); background: var(--u-bg); }
+  .tab-count {
+    display: inline-block; margin-left: 4px; font-size: 0.65rem;
+    background: currentColor; color: white; border-radius: 10px;
+    padding: 1px 6px; vertical-align: middle;
+  }
+
+  /* ── CLASS TABS ── */
+  .class-tabs-wrap {
+    background: var(--surface); border-bottom: 2px solid var(--border);
+    position: sticky; top: 118px; z-index: 80;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .class-tabs-wrap::-webkit-scrollbar { display: none; }
+  .class-tabs { display: flex; padding: 8px 10px; gap: 7px; min-width: max-content; }
+  .class-tab {
+    padding: 9px 16px; border-radius: 30px; font-size: 0.95rem; font-weight: 800;
+    cursor: pointer; border: 2px solid var(--border); background: white;
+    color: var(--text-muted); transition: all 0.15s; min-height: 44px;
+    font-family: 'Nunito', sans-serif;
+  }
+  .class-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .class-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .cls-pct { font-size: 0.65rem; opacity: 0.8; margin-left: 2px; }
+
+  /* ── PROGRESS BLOCK ── */
+  .progress-block {
+    background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    padding: 10px 14px 12px;
+    position: sticky; top: 174px; z-index: 70;
+  }
+  .progress-top {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+  }
+  .progress-label {
+    font-size: 0.82rem; font-weight: 700; color: var(--text-muted);
+    flex: 1;
+  }
+  .progress-counters {
+    display: flex; align-items: baseline; gap: 4px;
+  }
+  .prog-done {
+    font-size: 2rem; font-weight: 900; color: var(--accent);
+    line-height: 1;
+  }
+  .prog-sep {
+    font-size: 1.2rem; font-weight: 700; color: var(--text-muted);
+  }
+  .prog-total {
+    font-size: 2rem; font-weight: 900; color: var(--text);
+    line-height: 1;
+  }
+  .prog-remaining {
+    font-size: 0.75rem; font-weight: 700;
+    color: white; background: #c62828;
+    border-radius: 12px; padding: 2px 8px;
+    margin-left: 6px;
+  }
+  .prog-remaining.all-done { background: var(--accent); }
+  .progress-bar-bg {
+    height: 18px; border-radius: 10px; background: var(--border);
+    overflow: hidden; position: relative;
+  }
+  .progress-bar-fill {
+    height: 100%; background: var(--accent); border-radius: 10px;
+    transition: width 0.4s cubic-bezier(.4,0,.2,1);
+    min-width: 0;
+  }
+  .progress-bar-label {
+    position: absolute; right: 8px; top: 0; bottom: 0;
+    display: flex; align-items: center;
+    font-size: 0.75rem; font-weight: 900; color: var(--text-muted);
+    pointer-events: none;
+  }
+  .progress-bar-label.on-fill { color: white; right: auto; left: 8px; }
+
+  /* ── STUDENT LIST ── */
+  .student-list { padding: 10px 10px 100px; }
+
+  .student-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 14px; margin-bottom: 7px;
+    background: white; border-radius: var(--radius);
+    border: 2px solid var(--border); cursor: pointer;
+    transition: all 0.12s; min-height: 64px;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .student-row:active { transform: scale(0.98); }
+  .student-row.checked { background: var(--accent-light); border-color: var(--accent); }
+  .student-row.no-meal { opacity: 0.3; pointer-events: none; }
+
+  .check-box {
+    width: 42px; height: 42px; min-width: 42px; border-radius: 10px;
+    border: 3px solid var(--border); background: white;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.12s; flex-shrink: 0;
+  }
+  .checked .check-box { background: var(--accent); border-color: var(--accent); }
+  .check-box svg {
+    width: 24px; height: 24px; stroke: white; stroke-width: 3;
+    stroke-linecap: round; stroke-linejoin: round; fill: none;
+    opacity: 0; transform: scale(0.5); transition: all 0.15s;
+  }
+  .checked .check-box svg { opacity: 1; transform: scale(1); }
+  .student-info { flex: 1; min-width: 0; }
+  .student-name { font-size: 1.05rem; font-weight: 700; line-height: 1.3; }
+  .checked .student-name { color: var(--accent); text-decoration: line-through; opacity: 0.65; }
+  .meal-badges { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+  .badge { font-size: 0.68rem; font-weight: 800; padding: 2px 7px; border-radius: 5px; letter-spacing: 0.03em; text-transform: uppercase; }
+  .badge-t { background: var(--t-bg); color: var(--t-color); }
+  .badge-e { background: var(--e-bg); color: var(--e-color); }
+  .badge-u { background: var(--u-bg); color: var(--u-color); }
+  .badge-d { background: #ffeaea; color: #b71c1c; border: 1px solid #ffbbbb; }
+  .section-sep {
+    text-align: center; color: var(--text-muted); font-size: 0.72rem;
+    font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 8px 0 4px;
+  }
+  .empty-msg { text-align: center; color: var(--text-muted); padding: 40px 20px; font-size: 1rem; font-weight: 600; }
+
+  /* ── UPLOAD SCREEN ── */
+  #upload-screen {
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 30px 20px; text-align: center;
+  }
+  .upload-icon { font-size: 4rem; margin-bottom: 16px; }
+  .upload-title { font-size: 1.8rem; font-weight: 900; margin-bottom: 6px; }
+  .upload-sub { color: var(--text-muted); font-size: 1rem; font-weight: 600; margin-bottom: 28px; }
+  .drop-zone {
+    border: 3px dashed var(--border); border-radius: 24px;
+    padding: 36px 28px; width: 100%; max-width: 420px;
+    cursor: pointer; transition: all 0.2s; background: white;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-light); }
+  .drop-zone-icon { font-size: 2.8rem; margin-bottom: 10px; }
+  .drop-zone-text { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+  .drop-zone-hint { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; }
+  #file-input { display: none; }
+  .upload-btn {
+    margin-top: 16px; padding: 15px 40px;
+    background: var(--accent); color: white; border: none; border-radius: 14px;
+    font-family: 'Nunito', sans-serif; font-size: 1.05rem; font-weight: 800;
+    cursor: pointer; display: block; width: 100%; max-width: 420px;
+  }
+  .upload-btn:hover { opacity: 0.88; }
+  #upload-error {
+    color: #b71c1c; font-weight: 700; margin-top: 14px; font-size: 0.88rem;
+    max-width: 420px; text-align: left; background: #ffeaea;
+    padding: 10px 14px; border-radius: 10px; display: none; white-space: pre-wrap;
+  }
+
+  /* ── BOTTOM BUTTONS ── */
+  .reset-btn {
+    position: fixed; bottom: 20px; right: 12px;
+    background: white; border: 2px solid var(--border); color: var(--text-muted);
+    padding: 10px 16px; border-radius: 30px;
+    font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 700;
+    cursor: pointer; box-shadow: var(--shadow); z-index: 200;
+  }
+  .reset-btn:hover { border-color: #c62828; color: #c62828; }
+  .load-new-btn {
+    position: fixed; bottom: 20px; left: 12px;
+    background: var(--accent); color: white; padding: 10px 16px;
+    border-radius: 30px; font-family: 'Nunito', sans-serif; font-size: 0.82rem;
+    font-weight: 700; cursor: pointer; border: none; box-shadow: var(--shadow); z-index: 200;
+  }
+  .export-btn {
+    position: fixed; bottom: 62px; right: 12px;
+    background: #1565c0; color: white; padding: 10px 16px;
+    border-radius: 30px; font-family: 'Nunito', sans-serif; font-size: 0.82rem;
+    font-weight: 700; cursor: pointer; border: none; box-shadow: var(--shadow); z-index: 200;
+    display: none;
+  }
+  .export-btn:hover { opacity: 0.88; }
+  #app-screen { display: none; }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box {
+    background: white; border-radius: 24px;
+    padding: 28px 24px; max-width: 380px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    text-align: center;
+  }
+  .modal-icon { font-size: 2.8rem; margin-bottom: 12px; }
+  .modal-title { font-size: 1.2rem; font-weight: 900; margin-bottom: 8px; }
+  .modal-body { font-size: 0.92rem; color: var(--text-muted); font-weight: 600; line-height: 1.5; margin-bottom: 22px; }
+  .modal-body strong { color: var(--text); }
+  .modal-btns { display: flex; flex-direction: column; gap: 10px; }
+  .modal-btn {
+    padding: 14px; border-radius: 12px; font-family: 'Nunito', sans-serif;
+    font-size: 1rem; font-weight: 800; cursor: pointer; border: none;
+    transition: opacity 0.15s;
+  }
+  .modal-btn:hover { opacity: 0.85; }
+  .modal-btn-primary { background: var(--accent); color: white; }
+  .modal-btn-danger  { background: #c62828; color: white; }
+  .modal-btn-export  { background: #1565c0; color: white; }
+  .modal-btn-ghost   { background: var(--bg); color: var(--text-muted); border: 2px solid var(--border); }
+
+  /* ── EXPORT VISSZAJELZÉS ── */
+  #export-toast {
+    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%);
+    background: #1565c0; color: white;
+    padding: 12px 22px; border-radius: 20px;
+    font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 700;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    z-index: 300; opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    white-space: nowrap;
+  }
+  #export-toast.visible { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="upload-icon">🍽️</div>
+  <div class="upload-title">Étkezés Ellenőrző</div>
+  <div class="upload-sub">Karolina Iskola</div>
+  <label for="file-input" class="drop-zone" id="drop-zone">
+    <div class="drop-zone-icon">📋</div>
+    <div class="drop-zone-text">Húzza ide a napi Excel fájlt</div>
+    <div class="drop-zone-hint">QB Értékesítés – Személyekre bontva (.xlsx)</div>
+  </label>
+  <input type="file" id="file-input" accept=".xlsx,.xls">
+  <label for="file-input" class="upload-btn">📂 Fájl kiválasztása</label>
+  <div id="upload-error"></div>
+</div>
+
+<!-- APP SCREEN -->
+<div id="app-screen">
+  <div class="header">
+    <div class="header-top">
+      <h1>🍽️ Étkezés Ellenőrző</h1>
+      <div class="date-badge" id="header-date"></div>
+    </div>
+  </div>
+
+  <div class="meal-tabs">
+    <button class="meal-tab active-t" onclick="setMeal('t')" id="tab-t">🌅 Tízórai<span class="tab-count" id="tc-t">0</span></button>
+    <button class="meal-tab" onclick="setMeal('e')" id="tab-e">🍽️ Ebéd<span class="tab-count" id="tc-e">0</span></button>
+    <button class="meal-tab" onclick="setMeal('u')" id="tab-u">🍎 Uzsonna<span class="tab-count" id="tc-u">0</span></button>
+  </div>
+
+  <div class="class-tabs-wrap"><div class="class-tabs" id="class-tabs"></div></div>
+
+  <div class="progress-block">
+    <div class="progress-top">
+      <div class="progress-label" id="prog-label">Tízórai kiosztva:</div>
+      <div class="progress-counters">
+        <span class="prog-done" id="prog-done">0</span>
+        <span class="prog-sep">/</span>
+        <span class="prog-total" id="prog-total">0</span>
+        <span class="prog-remaining" id="prog-remaining">0 hátra</span>
+      </div>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="prog-fill" style="width:0%"></div>
+      <div class="progress-bar-label" id="prog-bar-label">0%</div>
+    </div>
+  </div>
+
+  <div class="student-list" id="student-list"></div>
+
+  <button class="export-btn" id="export-btn" onclick="exportUnchecked()">📥 Exportálás</button>
+  <button class="reset-btn" onclick="resetClass()">↺ Osztály törlése</button>
+  <button class="load-new-btn" onclick="loadNewFile()">📂 Új fájl</button>
+</div>
+
+<!-- Export visszajelzés toast -->
+<div id="export-toast">✅ Excel fájl letöltve!</div>
+
+<!-- MODAL: előző napi adatok törlése -->
+<div class="modal-overlay hidden" id="modal-stale">
+  <div class="modal-box">
+    <div class="modal-icon">🗓️</div>
+    <div class="modal-title">Előző napi adatok</div>
+    <div class="modal-body" id="modal-stale-body">
+      A tárolt pipák egy korábbi dátumhoz tartoznak.<br>
+      Kívánja törölni őket?
+    </div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-danger" onclick="clearStaleAndContinue()">🗑️ Igen, törölje az előző napit</button>
+      <button class="modal-btn modal-btn-ghost"  onclick="keepStaleAndContinue()">Megtartom</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: bezárás előtti export -->
+<div class="modal-overlay hidden" id="modal-export">
+  <div class="modal-box">
+    <div class="modal-icon">📥</div>
+    <div class="modal-title">Exportálás</div>
+    <div class="modal-body" id="modal-export-body"></div>
+    <div class="modal-btns">
+      <button class="modal-btn modal-btn-export" onclick="doExportAndClose()">📥 Exportálás és tovább</button>
+      <button class="modal-btn modal-btn-ghost"  onclick="closeWithoutExport()">Exportálás nélkül</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ──────────────────────────────────────────
+var schoolData   = [];
+var currentClass = 0;
+var currentMeal  = 't';
+var checked      = {};
+var loadedDate   = '';
+var pendingExportAction = null;
+
+// ─── STORAGE ────────────────────────────────────────
+function storageKey(d)  { return 'etk_' + (d || loadedDate); }
+function saveChecked()  { try { localStorage.setItem(storageKey(), JSON.stringify(checked)); } catch(e) {} }
+function loadChecked()  { try { var r = localStorage.getItem(storageKey()); checked = r ? JSON.parse(r) : {}; } catch(e) { checked = {}; } }
+
+function findStoredDates() {
+  var dates = [];
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (k && k.indexOf('etk_') === 0) dates.push(k.replace('etk_', ''));
+    }
+  } catch(e) {}
+  return dates;
+}
+function clearStoredDate(d) { try { localStorage.removeItem('etk_' + d); } catch(e) {} }
+
+// ─── STALE DATA ─────────────────────────────────────
+var _staleDates = [];
+
+function initStaleCheck() {
+  var stored = findStoredDates();
+  if (stored.length === 0) return;
+  _staleDates = stored;
+  var body = 'Az előző használatból tárolt pipák megtalálhatók:<br><br>';
+  body += '<strong>' + stored.join(',  ') + '</strong><br><br>';
+  body += 'Törli az előző napi adatokat?';
+  document.getElementById('modal-stale-body').innerHTML = body;
+  document.getElementById('modal-stale').classList.remove('hidden');
+}
+
+function clearStaleAndContinue() {
+  _staleDates.forEach(function(d) { clearStoredDate(d); });
+  _staleDates = [];
+  document.getElementById('modal-stale').classList.add('hidden');
+}
+function keepStaleAndContinue() {
+  document.getElementById('modal-stale').classList.add('hidden');
+}
+
+// ─── PARSER ─────────────────────────────────────────
+function parseExcel(arraybuffer) {
+  if (typeof XLSX === 'undefined') throw new Error('A SheetJS könyvtár nem érhető el.\nEllenőrizze az internetkapcsolatot, majd töltse újra az oldalt.');
+  var wb = XLSX.read(new Uint8Array(arraybuffer), { type: 'array' });
+  if (!wb.SheetNames.length) throw new Error('Üres munkafüzet.');
+  var ws   = wb.Sheets[wb.SheetNames[0]];
+  var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+  var classes = [], currentCls = null, detectedDate = '';
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i]; if (!row) continue;
+    var c0=row[0], c6=row[6], c9=row[9], c11=row[11], c16=row[16], c19=row[19], c22=row[22];
+
+    if (!detectedDate && typeof c6 === 'string') {
+      var dm = c6.match(/(\d{4}\.\d{2}\.\d{2})/); if (dm) detectedDate = dm[1];
+    }
+    if (typeof c9 === 'string' && c9.indexOf('JEGY') !== -1 && c9.indexOf('összesen') === -1) {
+      currentCls = { name: c9.replace(' JEGY','').trim(), students: [] };
+      classes.push(currentCls); continue;
+    }
+    if (currentCls && typeof c9 === 'string' && /^\d{5}$/.test(c9) &&
+        typeof c0 === 'string' && c0.trim().length > 2 &&
+        typeof c16 === 'number' && typeof c19 === 'number') {
+      currentCls.students.push({
+        name:    c0.trim(),
+        tizoral: c16>0?1:0, ebed: c19>0?1:0,
+        uzsonna: (typeof c22==='number'&&c22>0)?1:0,
+        diet:    (typeof c11==='string' && c11.indexOf('Diét')!==-1)
+      });
+    }
+  }
+  if (!classes.length) throw new Error('Nem sikerült osztályokat beolvasni.\nGyőződjön meg róla, hogy a "QB Értékesítés – Személyekre bontva" riportot töltötte fel.\n\nBeolvasott sorok: ' + rows.length);
+  return { classes: classes, date: detectedDate };
+}
+
+// ─── HELPERS ────────────────────────────────────────
+function mealField() { return currentMeal==='t'?'tizoral':currentMeal==='e'?'ebed':'uzsonna'; }
+function mealLabel() { return currentMeal==='t'?'Tízórai':currentMeal==='e'?'Ebéd':'Uzsonna'; }
+function checkKey(ci,si) { return ci+'_'+si+'_'+currentMeal; }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ─── RENDER ─────────────────────────────────────────
+function renderAll() { renderClassTabs(); renderProgress(); renderStudents(); }
+
+function renderClassTabs() {
+  var ct = document.getElementById('class-tabs'); ct.innerHTML = '';
+  var field = mealField();
+  for (var i=0; i<schoolData.length; i++) { (function(idx) {
+    var cls=schoolData[idx], eligible=0, done=0;
+    for (var j=0;j<cls.students.length;j++) {
+      if (cls.students[j][field]>0) { eligible++; if (checked[idx+'_'+j+'_'+currentMeal]) done++; }
+    }
+    var pct = eligible?Math.round(done/eligible*100):0;
+    var btn = document.createElement('button');
+    btn.className = 'class-tab'+(idx===currentClass?' active':'');
+    btn.innerHTML = cls.name+(eligible?'<span class="cls-pct">'+pct+'%</span>':'');
+    btn.onclick = function(){ currentClass=idx; renderAll(); };
+    ct.appendChild(btn);
+  })(i); }
+}
+
+function renderProgress() {
+  var cls=schoolData[currentClass], field=mealField(), eligible=0, done=0;
+  for (var j=0;j<cls.students.length;j++) {
+    if (cls.students[j][field]>0) { eligible++; if (checked[checkKey(currentClass,j)]) done++; }
+  }
+  var remaining = eligible - done;
+  var pct = eligible ? Math.round(done/eligible*100) : 0;
+
+  document.getElementById('prog-label').textContent = mealLabel() + ' kiosztva:';
+  document.getElementById('prog-done').textContent  = done;
+  document.getElementById('prog-total').textContent = eligible;
+  document.getElementById('prog-fill').style.width  = eligible ? pct+'%' : '0%';
+
+  var remEl = document.getElementById('prog-remaining');
+  if (eligible === 0) {
+    remEl.textContent = '—'; remEl.className = 'prog-remaining';
+  } else if (remaining === 0) {
+    remEl.textContent = '✓ kész'; remEl.className = 'prog-remaining all-done';
+  } else {
+    remEl.textContent = remaining + ' hátra'; remEl.className = 'prog-remaining';
+  }
+
+  var lblEl = document.getElementById('prog-bar-label');
+  if (pct >= 30) {
+    lblEl.className = 'progress-bar-label on-fill';
+    lblEl.textContent = pct + '%';
+  } else {
+    lblEl.className = 'progress-bar-label';
+    lblEl.textContent = pct + '%';
+  }
+
+  document.getElementById('export-btn').style.display = (eligible > 0 && remaining > 0) ? 'block' : 'none';
+}
+
+function renderStudents() {
+  var cls=schoolData[currentClass], field=mealField();
+  var list=document.getElementById('student-list'); list.innerHTML='';
+  var withMeal=[], withoutMeal=[];
+  for (var j=0;j<cls.students.length;j++) {
+    if (cls.students[j][field]>0) withMeal.push(j); else withoutMeal.push(j);
+  }
+  if (withMeal.length===0) {
+    var em=document.createElement('div'); em.className='empty-msg';
+    em.textContent='Nincs '+mealLabel().toLowerCase()+' rendelés ebben az osztályban.';
+    list.appendChild(em);
+  } else {
+    for (var k=0;k<withMeal.length;k++) list.appendChild(buildRow(cls.students[withMeal[k]],withMeal[k],false));
+  }
+  if (withoutMeal.length>0) {
+    var sep=document.createElement('div'); sep.className='section-sep';
+    sep.textContent='— Nincs rendelés —'; list.appendChild(sep);
+    for (var m=0;m<withoutMeal.length;m++) list.appendChild(buildRow(cls.students[withoutMeal[m]],withoutMeal[m],true));
+  }
+}
+
+function buildRow(stu,si,noMeal) {
+  var key=checkKey(currentClass,si), isChecked=!noMeal&&!!checked[key];
+  var row=document.createElement('div');
+  row.className='student-row'+(isChecked?' checked':'')+(noMeal?' no-meal':'');
+  var badges='';
+  if (stu.tizoral)  badges+='<span class="badge badge-t">T</span>';
+  if (stu.ebed)     badges+='<span class="badge badge-e">E</span>';
+  if (stu.uzsonna)  badges+='<span class="badge badge-u">U</span>';
+  if (stu.diet)     badges+='<span class="badge badge-d">Diéta</span>';
+  if (!badges)      badges='<span style="color:var(--text-muted);font-size:0.75rem">—</span>';
+  row.innerHTML=
+    '<div class="check-box"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>'+
+    '<div class="student-info"><div class="student-name">'+escHtml(stu.name)+'</div>'+
+    '<div class="meal-badges">'+badges+'</div></div>';
+  if (!noMeal) { (function(k){ row.addEventListener('click',function(){
+    checked[k]=!checked[k]; if(!checked[k]) delete checked[k]; saveChecked(); renderAll();
+  }); })(key); }
+  return row;
+}
+
+function renderMealTotals() {
+  var fields={t:'tizoral',e:'ebed',u:'uzsonna'};
+  ['t','e','u'].forEach(function(m) {
+    var total=0;
+    schoolData.forEach(function(cls){ cls.students.forEach(function(s){ if(s[fields[m]]>0) total++; }); });
+    document.getElementById('tc-'+m).textContent=total;
+  });
+}
+
+// ─── MEAL / CLASS CONTROLS ───────────────────────────
+function setMeal(m) {
+  currentMeal=m;
+  ['t','e','u'].forEach(function(x){ document.getElementById('tab-'+x).className='meal-tab'+(x===m?' active-'+x:''); });
+  renderAll();
+}
+function resetClass() {
+  var cls=schoolData[currentClass];
+  if (!confirm(cls.name+' – '+mealLabel()+' pipák törlése?')) return;
+  for (var j=0;j<cls.students.length;j++) delete checked[checkKey(currentClass,j)];
+  saveChecked(); renderAll();
+}
+
+// ─── EXPORT – ANDROID WEBVIEW KOMPATIBILIS ───────────────
+// A blob URL-alapú letöltés nem működik Android WebView-ban DownloadListener nélkül.
+// Megoldás: base64 data URI + rejtett <a download> link kattintás.
+function buildExportData() {
+  var meals = [{key:'t',field:'tizoral',label:'Tízórai'},{key:'e',field:'ebed',label:'Ebéd'},{key:'u',field:'uzsonna',label:'Uzsonna'}];
+  var rows = [['Osztály','Név','Étkezés','Megjegyzés']];
+  var count = 0;
+
+  for (var ci=0; ci<schoolData.length; ci++) {
+    var cls = schoolData[ci];
+    for (var si=0; si<cls.students.length; si++) {
+      var stu = cls.students[si];
+      for (var mi=0; mi<meals.length; mi++) {
+        var m = meals[mi];
+        if (stu[m.field] > 0 && !checked[ci+'_'+si+'_'+m.key]) {
+          rows.push([cls.name, stu.name, m.label, stu.diet ? 'Diéta' : '']);
+          count++;
+        }
+      }
+    }
+  }
+  return { rows: rows, count: count };
+}
+
+function doAndroidCompatibleDownload(wb, fname) {
+  // 1. MÓDSZER: base64 data URI (Android WebView-ban működik)
+  try {
+    var wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+    var dataUri = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + wbout;
+    var a = document.createElement('a');
+    a.href = dataUri;
+    a.download = fname;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('✅ Excel fájl letöltve!');
+    return true;
+  } catch(e1) {
+    // 2. MÓDSZER: ArrayBuffer + Blob URL (asztali böngésző fallback)
+    try {
+      var wbArr = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      var blob = new Blob([wbArr], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      var url = URL.createObjectURL(blob);
+      var a2 = document.createElement('a');
+      a2.href = url;
+      a2.download = fname;
+      a2.style.display = 'none';
+      document.body.appendChild(a2);
+      a2.click();
+      document.body.removeChild(a2);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+      showToast('✅ Excel fájl letöltve!');
+      return true;
+    } catch(e2) {
+      showToast('❌ Hiba: ' + e2.message);
+      return false;
+    }
+  }
+}
+
+function exportUnchecked() {
+  var data = buildExportData();
+  if (data.count === 0) { alert('Minden adag ki van osztva, nincs mit exportálni!'); return; }
+
+  var ws = XLSX.utils.aoa_to_sheet(data.rows);
+  ws['!cols'] = [{wch:10},{wch:30},{wch:12},{wch:14}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Kiosztásra vár');
+  var fname = 'kiosztasra_var_' + loadedDate + '.xlsx';
+
+  doAndroidCompatibleDownload(wb, fname);
+}
+
+// ─── TOAST VISSZAJELZÉS ─────────────────────────────────
+function showToast(msg) {
+  var toast = document.getElementById('export-toast');
+  toast.textContent = msg;
+  toast.classList.add('visible');
+  setTimeout(function() { toast.classList.remove('visible'); }, 3000);
+}
+
+// ─── BEZÁRÁS ELŐTTI MODAL ────────────────────────────────
+function showExportModal(afterCallback) {
+  var data = buildExportData();
+  pendingExportAction = afterCallback;
+  if (data.count === 0) { if (afterCallback) afterCallback(); return; }
+  var body = 'Összesen <strong>' + data.count + ' adag</strong> még nem lett kiosztva.<br>Exportálja Excel fájlba, mielőtt továbblép?';
+  document.getElementById('modal-export-body').innerHTML = body;
+  document.getElementById('modal-export').classList.remove('hidden');
+}
+function doExportAndClose() {
+  document.getElementById('modal-export').classList.add('hidden');
+  exportUnchecked();
+  if (pendingExportAction) { setTimeout(pendingExportAction, 500); pendingExportAction = null; }
+}
+function closeWithoutExport() {
+  document.getElementById('modal-export').classList.add('hidden');
+  if (pendingExportAction) { pendingExportAction(); pendingExportAction = null; }
+}
+
+// ─── FILE HANDLING ───────────────────────────────────────
+function showError(msg) { var el=document.getElementById('upload-error'); el.textContent=msg; el.style.display='block'; }
+
+function handleFile(file) {
+  document.getElementById('upload-error').style.display='none';
+  if (!file.name.match(/\.xlsx?$/i)) { showError('Kérjük .xlsx fájlt töltsön fel!'); return; }
+
+  var reader = new FileReader();
+  reader.onerror = function(){ showError('A fájl beolvasása sikertelen.'); };
+  reader.onload = function(e) {
+    try {
+      var result = parseExcel(e.target.result);
+      schoolData   = result.classes;
+      loadedDate   = result.date || new Date().toISOString().slice(0,10).replace(/-/g,'.');
+      currentClass = 0; currentMeal = 't';
+      loadChecked();
+      document.getElementById('header-date').textContent = loadedDate;
+      renderMealTotals(); setMeal('t');
+      document.getElementById('upload-screen').style.display='none';
+      document.getElementById('app-screen').style.display='block';
+      document.querySelector('.class-tabs-wrap').scrollLeft=0;
+    } catch(err) { showError(err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── ÚJ FÁJL BETÖLTÉSE ──────────────────────────────────
+function loadNewFile() {
+  if (!schoolData.length) {
+    document.getElementById('app-screen').style.display='none';
+    document.getElementById('upload-screen').style.display='flex';
+    return;
+  }
+  showExportModal(function(){
+    document.getElementById('app-screen').style.display='none';
+    document.getElementById('upload-screen').style.display='flex';
+  });
+}
+
+// ─── FILE INPUT / DRAG-DROP ──────────────────────────────
+document.getElementById('file-input').addEventListener('change', function(e){
+  if (e.target.files[0]) handleFile(e.target.files[0]); e.target.value='';
+});
+var dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',  function(e){ e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', function(){  dz.classList.remove('drag-over'); });
+dz.addEventListener('drop', function(e){ e.preventDefault(); dz.classList.remove('drag-over'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+// ─── OLDAL BETÖLTÉSEKOR ──────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  initStaleCheck();
+});
+</script>
+</body>
+</html>
